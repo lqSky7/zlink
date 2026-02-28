@@ -39,6 +39,15 @@ func New(cfg Config, rbac rbacAPI, graph graphAPI) *connector {
 	}
 }
 
+// NewFromConfig creates a connector from config alone. RBAC and Graph API calls
+// will fail until real HTTP-backed implementations are provided via New().
+// Use this when you only need Discover (which doesn't require API clients).
+func NewFromConfig(cfg Config) *connector {
+	return &connector{
+		subscriptionID: cfg.SubscriptionID,
+	}
+}
+
 func (c *connector) Platform() zlink.Platform {
 	return zlink.Azure
 }
