@@ -2,11 +2,22 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/zoth-iam/zoth/zlink"
 )
+
+// ErrUnsupported is returned by operations whose backing API client was not
+// provided to New (for example connectors built with NewFromConfig, which can
+// only Discover). Callers classify it with errors.Is.
+var ErrUnsupported = errors.New("unsupported operation")
+
+// notConfigured reports an operation as unusable while still classifiable via ErrUnsupported.
+func notConfigured(op string) error {
+	return fmt.Errorf("azure %s not configured: %w", op, ErrUnsupported)
+}
 
 type rbacAPI interface {
 	CreateRoleAssignment(ctx context.Context, scope, roleAssignmentName string, principalID, roleDefID string) (string, error)
@@ -63,6 +74,10 @@ func (c *connector) Capabilities() zlink.Capabilities {
 }
 
 func (c *connector) Grant(ctx context.Context, user zlink.UserIdentity, resource zlink.Resource, level zlink.AccessLevel) (*zlink.GrantResult, error) {
+	if c.rbac == nil {
+		return nil, notConfigured("grant")
+	}
+
 	principalID, err := c.resolvePrincipalID(ctx, user)
 	if err != nil {
 		return nil, err
@@ -94,6 +109,10 @@ func (c *connector) Grant(ctx context.Context, user zlink.UserIdentity, resource
 }
 
 func (c *connector) Revoke(ctx context.Context, user zlink.UserIdentity, resource zlink.Resource) (*zlink.RevokeResult, error) {
+	if c.rbac == nil {
+		return nil, notConfigured("revoke")
+	}
+
 	principalID, err := c.resolvePrincipalID(ctx, user)
 	if err != nil {
 		return nil, err
@@ -138,6 +157,10 @@ func (c *connector) Discover(_ context.Context, _ zlink.DiscoverOpts) (*zlink.Di
 }
 
 func (c *connector) CheckAccess(ctx context.Context, user zlink.UserIdentity, resource zlink.Resource) (*zlink.AccessState, error) {
+	if c.rbac == nil {
+		return nil, notConfigured("check_access")
+	}
+
 	principalID, err := c.resolvePrincipalID(ctx, user)
 	if err != nil {
 		return nil, err
@@ -160,6 +183,10 @@ func (c *connector) CheckAccess(ctx context.Context, user zlink.UserIdentity, re
 }
 
 func (c *connector) ResolveUser(ctx context.Context, email string) (*zlink.UserIdentity, error) {
+	if c.graph == nil {
+		return nil, notConfigured("resolve_user")
+	}
+
 	objectID, err := c.graph.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, classifyError(err, "resolve_user")
